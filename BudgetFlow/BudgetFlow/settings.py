@@ -39,6 +39,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'rest_framework',
     'drf_yasg',
+    'corsheaders',
     'Login',
     'Gastos',
     'Relatório',
@@ -52,6 +53,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
 ]
 
 ROOT_URLCONF = 'BudgetFlow.urls'
@@ -74,6 +76,11 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'BudgetFlow.wsgi.application'
 
+CORS_ORIGIN_WHITELIST = [
+'http://0.0.0.0:8080',
+'http://127.0.0.1:8080',
+'http://localhost:8080',
+]
 
 # Database
 # https://docs.djangoproject.com/en/3.2/ref/settings/#databases
