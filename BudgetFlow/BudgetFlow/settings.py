@@ -41,6 +41,7 @@ INSTALLED_APPS = [
     'drf_yasg',
     'coreapi',
     'corsheaders',
+    'rest_framework.authtoken',
     'Login',
     'Gastos',
     'Relatório',
@@ -143,3 +144,10 @@ PASSWORD_HASHERS = [
     'django.contrib.auth.hashers.PBKDF2PasswordHasher',
     'django.contrib.auth.hashers.PBKDF2SHA1PasswordHasher',
 ]
+
+REST_FRAMEWORK = {
+    'DEFAULT_SCHEMA_CLASS': 'rest_framework.schemas.coreapi.AutoSchema',
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework.authentication.TokenAuthentication',
+    ],
+}

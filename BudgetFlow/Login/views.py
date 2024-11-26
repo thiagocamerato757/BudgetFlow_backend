@@ -3,49 +3,77 @@ from Login.serializers import UserSerializer
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from django.contrib.auth import authenticate, login as django_login, logout
-from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
+from django.views.decorators.csrf import csrf_exempt
 from rest_framework.request import Request
 from rest_framework.status import HTTP_400_BAD_REQUEST, HTTP_401_UNAUTHORIZED, HTTP_201_CREATED
+from rest_framework.permissions import AllowAny,IsAuthenticated
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
-@method_decorator(csrf_exempt, name='dispatch')
+from drf_yasg.openapi import Parameter, IN_HEADER
+from rest_framework.authtoken.models import Token
+
 class Loginview(APIView):
+    permission_classes = [AllowAny]
     @swagger_auto_schema(
+        operation_description="Authenticate user and return an authentication token.",
         request_body=openapi.Schema(
             type=openapi.TYPE_OBJECT,
             properties={
-                'username': openapi.Schema(type=openapi.TYPE_STRING, description='Username'),
-                'password': openapi.Schema(type=openapi.TYPE_STRING, description='Password')
-            }
+                'username': openapi.Schema(type=openapi.TYPE_STRING, description='Username of the user'),
+                'password': openapi.Schema(type=openapi.TYPE_STRING, description='Password of the user')
+            },
+            required=['username', 'password'],
         ),
-        responses={200: 'User authenticated and logged in successfully', 400: 'Invalid credentials'}
+        responses={
+            200: openapi.Response(
+                description="User authenticated successfully.",
+                example={
+                    'success': 'User authenticated and logged in successfully',
+                    'token': 'auth_token'
+                }
+            ),
+            400: openapi.Response(
+                description="Invalid credentials.",
+                example={
+                    'error': 'Invalid credentials'
+                }
+            ),
+        }
     )
-    def put(self, request: Request) -> Response:
-        """
-        Handle PUT request to authenticate and log in the user.
-
-        This method authenticates the user with the provided username and password,
-        and logs in the user if the credentials are valid.
-
-        :param request: The HTTP request object containing the username and password.
-        :type request: Request
-        :return: A response object containing a success message if the user is authenticated and logged in successfully,
-                 or an error message with a 400 status code if the credentials are invalid.
-        :rtype: Response
-        """
+    def post(self, request: Request) -> Response:  # Alterado para POST
         username = request.data.get('username')
         password = request.data.get('password')
         user = authenticate(request, username=username, password=password)
-        if user is not None:
-            django_login(request, user)
-            return Response({"success": "User authenticated and logged in successfully"})
+        if user:
+            token, created = Token.objects.get_or_create(user=user)
+            return Response({
+                "success": "User authenticated and logged in successfully",
+                "token": token.key,
+            })
         return Response({"error": "Invalid credentials"}, status=HTTP_400_BAD_REQUEST)
-@method_decorator(csrf_exempt, name='dispatch')    
+
 class RegisterView(APIView):
+    permission_classes = [AllowAny]
     @swagger_auto_schema(
+        operation_description="Register a new user and return an authentication token.",
         request_body=UserSerializer,
-        responses={201: 'User created successfully', 400: 'Bad Request'}
+        responses={
+            201: openapi.Response(
+                description="User registered successfully.",
+                example={
+                    'success': 'User created successfully',
+                    'token': 'auth_token'
+                }
+            ),
+            400: openapi.Response(
+                description="Bad request due to invalid data.",
+                example={
+                    'username': ['This field is required.'],
+                    'password': ['This field is required.']
+                }
+            ),
+        }
     )
     def post(self, request: Request) -> Response:
         """
@@ -69,33 +97,62 @@ class RegisterView(APIView):
             email = serializer.validated_data['email']
             user = User.objects.create_user(username=username, password=password, email=email)
             user.save()
-            return Response({"success": "User created successfully"}, status=HTTP_201_CREATED)
+            token, created = Token.objects.get_or_create(user=user)
+            return Response({
+                "success": "User created successfully",
+                "token": token.key,
+            }, status=HTTP_201_CREATED)
         return Response(serializer.errors, status=HTTP_400_BAD_REQUEST)
-@method_decorator(csrf_exempt, name='dispatch')
+
 class LogoutView(APIView):
+    permission_classes = [IsAuthenticated]
+
     @swagger_auto_schema(
-        request_body=openapi.Schema(
-            type=openapi.TYPE_OBJECT,
-            properties={
-                'username': openapi.Schema(type=openapi.TYPE_STRING, description='Username')
-            }
-        ),
-        responses={200: 'User logged out successfully', 401: 'User not authenticated'}
+        operation_description="Log out the authenticated user by deleting their token.",
+        manual_parameters=[
+            Parameter(
+                name="Authorization",
+                in_=IN_HEADER,
+                description="Token de autenticação no formato 'Token <seu_token>'",
+                type=openapi.TYPE_STRING,
+                required=True,
+            )
+        ],
+        responses={
+            200: openapi.Response(
+                description="User logged out successfully.",
+                example={
+                    'success': 'User logged out successfully'
+                }
+            ),
+            401: openapi.Response(
+                description="User not authenticated.",
+                example={
+                    'error': 'Authentication credentials were not provided.'
+                }
+            ),
+            400: openapi.Response(
+                description="Bad request.",
+                example={
+                    'error': 'An unexpected error occurred'
+                }
+            ),
+        }
     )
     def delete(self, request: Request) -> Response:
         """
         Handle DELETE request to log out the user.
 
-        This method logs out the authenticated user.
+        This method deletes the user's authentication token, effectively logging them out.
 
         :param request: The HTTP request object.
         :type request: Request
         :return: A response object containing a success message if the user is logged out successfully,
-                 or an error message with a 401 status code if the user is not authenticated.
+                 or an error message if something goes wrong.
         :rtype: Response
         """
-        username = request.data.get('username')
-        if not request.user.is_authenticated or request.user.username != username:
-            return Response({"error": "User not authenticated"}, status=HTTP_401_UNAUTHORIZED)
-        logout(request)
-        return Response({"success": "User logged out successfully"})
+        try:
+            request.auth.delete()  # Deleta o token do usuário autenticado
+            return Response({"success": "User logged out successfully"})
+        except Exception as e:
+            return Response({"error": str(e)}, status=HTTP_400_BAD_REQUEST)
