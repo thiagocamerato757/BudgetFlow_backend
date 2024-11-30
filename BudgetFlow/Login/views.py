@@ -1,4 +1,5 @@
 from django.contrib.auth.models import User
+from django.core.mail import send_mail
 from Login.serializers import UserSerializer
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -8,8 +9,11 @@ from rest_framework.status import HTTP_400_BAD_REQUEST, HTTP_201_CREATED, HTTP_2
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
+from django.utils.crypto import get_random_string
+from django.core.cache import cache
 from drf_yasg.openapi import Parameter, IN_HEADER
 from rest_framework.authtoken.models import Token
+from decouple import config
 
 
 class LoginView(APIView):
@@ -183,3 +187,119 @@ class LogoutView(APIView):
             return Response({"success": "Usuário deslogado com sucesso", "user_id": user_id}, status=HTTP_200_OK)
         except Exception as e:
             return Response({"error": str(e)}, status=HTTP_400_BAD_REQUEST)
+class RequestPasswordResetView(APIView):
+    permission_classes = [AllowAny]
+
+    @swagger_auto_schema(
+        operation_description=__doc__,
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                'email': openapi.Schema(type=openapi.TYPE_STRING, description="E-mail do usuário cadastrado"),
+            },
+            required=['email'],
+        ),
+        responses={
+            200: openapi.Response(
+                description="Código de redefinição enviado com sucesso.",
+                example={'success': 'Código de redefinição enviado para o e-mail fornecido.'}
+            ),
+            400: openapi.Response(
+                description="Erro ao processar o e-mail fornecido.",
+                example={'error': 'E-mail não encontrado.'}
+            ),
+        }
+    )
+    def post(self, request: Request) -> Response:
+        """
+        Lidar com requisição POST para iniciar o processo de redefinição de senha.
+
+        Este método verifica se o e-mail fornecido está associado a um usuário registrado.
+        Se o usuário for encontrado, um código de redefinição é gerado e enviado para o e-mail do usuário.
+
+        :param request: Objeto de requisição HTTP contendo o e-mail do usuário.
+        :type request: Request
+        :return: Um objeto de resposta contendo uma mensagem de sucesso se o código de redefinição for enviado,
+                 ou uma mensagem de erro com um código de status 400 se o e-mail não for encontrado.
+        :rtype: Response
+        """
+        email = request.data.get('email')
+        try:
+            user = User.objects.get(email=email)
+        except User.DoesNotExist:
+            return Response({"error": "Usuário não encontrado"}, status=HTTP_400_BAD_REQUEST)
+
+        # Gerar um código de redefinição e armazená-lo no cache
+        reset_code = get_random_string(length=6, allowed_chars='0123456789')
+        cache.set(f"reset_code_{user.id}", reset_code, timeout=3600)
+
+        # (Opcional) Enviar o código por email
+        send_mail(
+            'Redefinição de Senha',
+            f'Seu código de redefinição de senha é: {reset_code}',
+            'thiagocome403@gmail.com',
+            [user.email],
+        )
+
+        return Response({"success": "Código de redefinição enviado com sucesso."}, status=HTTP_200_OK)
+
+
+class ResetPasswordView(APIView):
+    permission_classes = [AllowAny]
+
+    @swagger_auto_schema(
+        operation_description=__doc__,
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                'email': openapi.Schema(type=openapi.TYPE_STRING, description="E-mail do usuário cadastrado"),
+                'reset_code': openapi.Schema(type=openapi.TYPE_STRING, description="Código de redefinição enviado por e-mail"),
+                'new_password': openapi.Schema(type=openapi.TYPE_STRING, description="Nova senha do usuário"),
+            },
+            required=['email', 'reset_code', 'new_password'],
+        ),
+        responses={
+            200: openapi.Response(
+                description="Senha redefinida com sucesso.",
+                example={'success': 'Senha atualizada com sucesso.'}
+            ),
+            400: openapi.Response(
+                description="Erro na redefinição de senha.",
+                example={'error': 'Código de redefinição inválido ou expirado.'}
+            ),
+        }
+    )
+    def post(self, request: Request) -> Response:
+        """
+        Lidar com requisição POST para redefinir a senha do usuário.
+
+        Este método verifica se o código de redefinição fornecido é válido e, se for,
+        atualiza a senha do usuário com a nova senha fornecida.
+
+        :param request: Objeto de requisição HTTP contendo o e-mail do usuário, o código de redefinição e a nova senha.
+        :type request: Request
+        :return: Um objeto de resposta contendo uma mensagem de sucesso se a senha for redefinida com sucesso,
+                 ou uma mensagem de erro com um código de status 400 se o código de redefinição for inválido ou expirado.
+        :rtype: Response
+        """
+        try:
+            user = User.objects.get(email=request.data.get('email'))
+        except User.DoesNotExist:
+            return Response({"error": "Usuário não encontrado"}, status=HTTP_400_BAD_REQUEST)
+
+        reset_code = request.data.get('reset_code')
+        new_password = request.data.get('new_password')
+
+        # Verificar se o código é válido
+        stored_code = cache.get(f"reset_code_{user.id}")
+        if not stored_code or stored_code != reset_code:
+            return Response({"error": "Código de redefinição inválido ou expirado."}, status=HTTP_400_BAD_REQUEST)
+
+        # Atualizar a senha
+        user.set_password(new_password)
+        user.save()
+
+        # Limpar o cache para o código
+        cache.delete(f"reset_code_{user.id}")
+
+        return Response({"success": "Senha redefinida com sucesso."}, status=HTTP_200_OK)
