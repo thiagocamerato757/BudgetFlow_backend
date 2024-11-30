@@ -4,7 +4,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from django.contrib.auth import authenticate, login, logout 
 from rest_framework.request import Request
-from rest_framework.status import HTTP_400_BAD_REQUEST, HTTP_401_UNAUTHORIZED, HTTP_201_CREATED
+from rest_framework.status import HTTP_400_BAD_REQUEST, HTTP_201_CREATED, HTTP_200_OK
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
@@ -29,7 +29,8 @@ class LoginView(APIView):
                 description="Usuário autenticado e logado com sucesso.",
                 example={
                     'success': 'Usuário autenticado e logado com sucesso',
-                    'token': 'auth_token'
+                    'token': 'auth_token',
+                    "user_id": 'user_id',   
                 }
             ),
             400: openapi.Response(
@@ -68,6 +69,7 @@ class LoginView(APIView):
             return Response({
                 "success": "Usuário autenticado e logado com sucesso",
                 "token": token.key,
+                "user_id": user.id,
             })
         return Response({"error": "Credenciais inválidas"}, status=HTTP_400_BAD_REQUEST)
 
@@ -83,7 +85,8 @@ class RegisterView(APIView):
                 description="Usuário registrado com sucesso.",
                 example={
                     'success': 'Usuário criado com sucesso',
-                    'token': 'auth_token'
+                    'token': 'auth_token',
+                    'user_id': 'user_id',
                 }
             ),
             400: openapi.Response(
@@ -122,6 +125,7 @@ class RegisterView(APIView):
             return Response({
                 "success": "Usuário criado com sucesso",
                 "token": token.key,
+                "user_id": user.id,
             }, status=HTTP_201_CREATED)
         return Response(serializer.errors, status=HTTP_400_BAD_REQUEST)
 
@@ -144,13 +148,15 @@ class LogoutView(APIView):
             200: openapi.Response(
                 description="Usuário deslogado com sucesso.",
                 example={
-                    'success': 'Usuário deslogado com sucesso'
+                    'success': 'Usuário deslogado com sucesso',
+                    'user_id': 'user_id'
                 }
             ),
             401: openapi.Response(
                 description="Usuário não autenticado.",
                 example={
-                    'error': 'Usuário não autenticado'
+                    'error': 'Usuário não autenticado',
+                    'user_id': 'user_id'
                 }
             ),
         }
@@ -168,11 +174,12 @@ class LogoutView(APIView):
         :rtype: Response
         """
         try:
+            user_id = request.user.id
             # Deleta o token de autenticação associado ao usuário
             request.auth.delete()
             # Remove a sessão do usuário
             logout(request)
 
-            return Response({"success": "Usuário deslogado com sucesso"})
+            return Response({"success": "Usuário deslogado com sucesso", "user_id": user_id}, status=HTTP_200_OK)
         except Exception as e:
             return Response({"error": str(e)}, status=HTTP_400_BAD_REQUEST)
