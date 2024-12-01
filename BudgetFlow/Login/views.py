@@ -5,7 +5,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from django.contrib.auth import authenticate, login, logout 
 from rest_framework.request import Request
-from rest_framework.status import HTTP_400_BAD_REQUEST, HTTP_201_CREATED, HTTP_200_OK
+from rest_framework.status import HTTP_400_BAD_REQUEST, HTTP_201_CREATED, HTTP_200_OK, HTTP_401_UNAUTHORIZED
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
@@ -303,3 +303,51 @@ class ResetPasswordView(APIView):
         cache.delete(f"reset_code_{user.id}")
 
         return Response({"success": "Senha redefinida com sucesso."}, status=HTTP_200_OK)
+class EstaLogadoView(APIView):
+    permission_classes = [AllowAny]
+
+    @swagger_auto_schema(
+        operation_description="Verifica se o usuário está autenticado.",
+        manual_parameters=[
+            Parameter(
+                name="Authorization",
+                in_=IN_HEADER,
+                description="Token de autenticação no formato 'Token <seu_token>'",
+                type=openapi.TYPE_STRING,
+                required=True,
+            )
+        ],
+        responses={
+            200: openapi.Response(
+                description="Usuário autenticado.",
+                example={
+                    'is_authenticated': True,
+                    'user_id': 'user_id',
+                    'username': 'username',
+                    'email': 'email'
+                }
+            ),
+            401: openapi.Response(
+                description="Usuário não autenticado.",
+                example={'is_authenticated': False}
+            ),
+        }
+    )
+    def get(self, request: Request) -> Response:
+        """
+        Verifica se o usuário está autenticado.
+
+        :param request: Objeto de requisição HTTP.
+        :type request: Request
+        :return: Um objeto de resposta indicando se o usuário está autenticado e suas informações.
+        :rtype: Response
+        """
+        if request.user.is_authenticated:
+            user_info = {
+                "is_authenticated": True,
+                "user_id": request.user.id,
+                "username": request.user.username,
+                "email": request.user.email
+            }
+            return Response(user_info, status=HTTP_200_OK)
+        return Response({"is_authenticated": False}, status=HTTP_401_UNAUTHORIZED)
