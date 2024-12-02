@@ -97,6 +97,55 @@ class ListaDespesasView(APIView):
 
 class EditaDespesaView(APIView):
     permission_classes = [IsAuthenticated]
+    @swagger_auto_schema(
+        operation_description=__doc__,
+        manual_parameters=[
+            Parameter(
+                name="Authorization",
+                in_=IN_HEADER,
+                description="Token de autenticação no formato 'Token <seu_token>'",
+                type=openapi.TYPE_STRING,
+                required=True,
+            )
+        ],
+        responses={
+            200: openapi.Response(
+                description="Dados da despesa retornados com sucesso.",
+                examples={
+                    "application/json": {
+                        "id": 1,
+                        "descricao": "Descrição da despesa",
+                        "valor": 500.0,
+                        "data": "2024-12-01",
+                        "categoria": "alimentacao"
+                    }
+                }
+            ),
+            400: openapi.Response(
+                description="Erro ao buscar a receita.",
+                examples={
+                    "application/json": {
+                        "error": "despesa não encontrada"
+                    }
+                }
+            ),
+        }
+    )
+    def get(self, request, pk: int) -> Response:
+        """
+        Recupera os dados de uma receita específica para edição.
+
+        :param request: Objeto de solicitação HTTP.
+        :param pk: ID da receita a ser recuperada.
+        :return: Dados da receita ou mensagem de erro.
+        """
+        try:
+            despesa = Despesa.objects.get(pk=pk, user=request.user)
+        except Receita.DoesNotExist:
+            return Response({"error": "Despesa não encontrada"}, status=HTTP_400_BAD_REQUEST)
+
+        serializer = DespesaSerializer(despesa)
+        return Response(serializer.data, status=HTTP_200_OK)
 
     @swagger_auto_schema(
         operation_description=__doc__,
@@ -291,6 +340,56 @@ class EditaReceitaView(APIView):
 
     @swagger_auto_schema(
         operation_description=__doc__,
+        manual_parameters=[
+            Parameter(
+                name="Authorization",
+                in_=IN_HEADER,
+                description="Token de autenticação no formato 'Token <seu_token>'",
+                type=openapi.TYPE_STRING,
+                required=True,
+            )
+        ],
+        responses={
+            200: openapi.Response(
+                description="Dados da receita retornados com sucesso.",
+                examples={
+                    "application/json": {
+                        "id": 1,
+                        "descricao": "Descrição da receita",
+                        "valor": 500.0,
+                        "data": "2024-12-01",
+                        "categoria": "Salário"
+                    }
+                }
+            ),
+            400: openapi.Response(
+                description="Erro ao buscar a receita.",
+                examples={
+                    "application/json": {
+                        "error": "Receita não encontrada"
+                    }
+                }
+            ),
+        }
+    )
+    def get(self, request, pk: int) -> Response:
+        """
+        Recupera os dados de uma receita específica para edição.
+
+        :param request: Objeto de solicitação HTTP.
+        :param pk: ID da receita a ser recuperada.
+        :return: Dados da receita ou mensagem de erro.
+        """
+        try:
+            receita = Receita.objects.get(pk=pk, user=request.user)
+        except Receita.DoesNotExist:
+            return Response({"error": "Receita não encontrada"}, status=HTTP_400_BAD_REQUEST)
+
+        serializer = ReceitaSerializer(receita)
+        return Response(serializer.data, status=HTTP_200_OK)
+
+    @swagger_auto_schema(
+        operation_description="Edita os dados de uma receita específica.",
         request_body=ReceitaSerializer,
         manual_parameters=[
             Parameter(
@@ -304,27 +403,30 @@ class EditaReceitaView(APIView):
         responses={
             200: openapi.Response(
                 description="Receita editada com sucesso.",
-                example={"success": "Receita atualizada com sucesso", "id": 1}
+                examples={
+                    "application/json": {
+                        "success": "Receita atualizada com sucesso",
+                        "id": 1
+                    }
+                }
             ),
             400: openapi.Response(
                 description="Erro nos dados fornecidos.",
-                example={"error": "Dados inválidos"}
+                examples={
+                    "application/json": {
+                        "error": "Dados inválidos"
+                    }
+                }
             ),
         }
     )
-    def put(self, request: Request, pk: int) -> Response:
+    def put(self, request, pk: int) -> Response:
         """
         Edita uma receita específica.
 
-        Este método recebe os dados atualizados da receita no corpo da solicitação, valida-os e, se estiverem corretos,
-        atualiza a instância da receita especificada pelo ID (pk) associada ao usuário autenticado.
-
         :param request: Objeto de solicitação HTTP contendo os dados atualizados da receita.
-        :type request: Request
         :param pk: ID da receita a ser editada.
-        :type pk: int
         :return: Resposta HTTP com o status da operação e o ID da receita atualizada, ou erros de validação.
-        :rtype: Response
         """
         try:
             receita = Receita.objects.get(pk=pk, user=request.user)
@@ -339,8 +441,6 @@ class EditaReceitaView(APIView):
                 "id": receita.id
             }, status=HTTP_200_OK)
         return Response(serializer.errors, status=HTTP_400_BAD_REQUEST)
-
-
 class DeletaReceitaView(APIView):
     permission_classes = [IsAuthenticated]
 
