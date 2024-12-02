@@ -7,7 +7,7 @@ O **BudgetFlow Backend** é a parte do servidor da aplicação BudgetFlow, respo
 ## Funcionalidades Implementadas
 
 ### 1. Autenticação de Usuários
-- **Verifica Autentificacao**: retorna se um usário está autenticado ou não.
+- **Verifica Autentificação**: retorna se um usário está autenticado ou não.
 - **Registro de Usuários**: Permite que novos usuários se cadastrem no sistema fornecendo um nome de usuário, e-mail e senha.
 - **Login**: Autentica usuários registrados, gerando um token de autenticação que é utilizado para acessar áreas protegidas da aplicação.
 - **Logout**: Invalida o token de autenticação, deslogando o usuário do sistema.
