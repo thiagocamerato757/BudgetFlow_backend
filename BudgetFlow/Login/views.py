@@ -13,7 +13,6 @@ from django.utils.crypto import get_random_string
 from django.core.cache import cache
 from drf_yasg.openapi import Parameter, IN_HEADER
 from rest_framework.authtoken.models import Token
-from decouple import config
 
 
 class LoginView(APIView):
